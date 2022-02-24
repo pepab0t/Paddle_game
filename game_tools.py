@@ -1,3 +1,4 @@
+from numpy import isin
 import pygame as pg
 import math as m
 
@@ -17,6 +18,9 @@ class Vector:
     def turn_vert(self):
         self.__y = -self.__y
         self._slope()
+
+    def get(self):
+        return (self.__x, self.__y)
 
     def _normalize(self):
         mag = self.magnitude()
@@ -44,9 +48,17 @@ class Vector:
 
     def __mul__(self, other):
         if isinstance(other, int) or isinstance(other, float):
-            return (self.__x * other, self.__y * other)
+            return Vector(self.__x * other, self.__y * other, False)
+        elif isinstance(other, Vector):
+            return self.__x * other.__x + self.__y * other.__y
         else:
-            raise ValueError('Multiplying only by int or float.')
+            raise ValueError('Multiplying only by int or float or Vector.')
+
+    def __add__(self, other):
+        if isinstance(other, Vector):
+            return Vector(self.__x + other.__x, self.__y + other.__y, True)
+        else:
+            raise ValueError('Other must be instance of Vector.')
 
 class Point:
     def __init__(self, x, y):
@@ -74,9 +86,10 @@ class Point:
 
     def __sub__(self, other):
         if isinstance(other, Point):
-            return Vector(other.X - self.X, other.Y - self.Y)
+            return Vector(self.X - other.X, self.Y - other.Y)
         else:
             raise ValueError('Other must be instance of Point.')
+
 
 class GameObject:
     default_velocity = 5
@@ -138,23 +151,28 @@ class Paddle(GameObject):
         return (*self.upper_left_coords(), *self._size)
 
     def move_up(self):
-        if (self.upper_left_coords()[1] > 0):
+        if (self._center.Y > 0):
             self._move(0, -self._velocity)
 
     def move_down(self):
-        if (self.upper_left_coords()[1] + self._size[1]) < Paddle.window_height:
+        if (self._center.Y ) < Paddle.window_height:
             self._move(0, self._velocity)
 
     def upper_left_coords(self):
         return (self._center.X - self._size[0]/2, self._center.Y - self._size[1]/2)
 
+    def offset_vect(self):
+        return Vector(self._size[0]/2, 0)
+
 class Ball(GameObject):
     default_radius = 10
 
-    def __init__(self, radius=default_radius, direction=(-15, 0), *args, **kwargs):
+    def __init__(self, radius=default_radius, direction=(-1, 0), *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._radius = radius
         self._direction = Vector(*direction)
+        print('mag',(self._direction).magnitude())
+        self.last_bump = None # 0 up, 1 down, None didnt bump
 
     @property
     def Radius(self):
@@ -169,9 +187,13 @@ class Ball(GameObject):
         return self._direction
 
     def make_move(self):
-        self._move(*self._direction*self._velocity)
+        self._move(*(self._direction*self._velocity).get())
 
     def swap_direct_v(self):
+        if (self._direction.Way == 'R' and self._direction.Slope > 0) or (self._direction.Way == 'L' and self._direction.Slope <= 0):
+            self.last_bump = 1
+        elif (self._direction.Way == 'L' and self._direction.Slope > 0) or (self._direction.Way == 'R' and self._direction.Slope <= 0):
+            self.last_bump = 0
         self._direction.turn_vert()
 
     def change_direction(self, new_direct):
